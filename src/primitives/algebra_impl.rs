@@ -68,7 +68,7 @@ impl Mul<f64> for Vec3 {
             z: self.z * rhs,
         }
     }
-}   
+}
 
 impl Mul<Vec3> for f64 {
     type Output = Vec3;
@@ -106,6 +106,30 @@ impl Mul for Vec3 {
         };
 
         temp.x + temp.y + temp.z
+    }
+}
+
+impl Sub for Vec3 {
+    type Output = Self;
+
+    fn sub(self, rhs: Self) -> Self::Output {
+        Self {
+            x: self.x - rhs.x,
+            y: self.y - rhs.y,
+            z: self.z - rhs.z,
+        }
+    }
+}
+
+impl Neg for Vec3 {
+    type Output = Self;
+
+    fn neg(self) -> Self::Output {
+        Self {
+            x: -self.x,
+            y: -self.y,
+            z: -self.z,
+        }
     }
 }
 

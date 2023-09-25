@@ -10,6 +10,14 @@ pub use primitives::{
 
 use image::Rgb;
 
+pub fn scale_color(color: [u8; 3], scalar: f64) -> [u8; 3] {
+    [
+        (color[0] as f64 * scalar) as u8,
+        (color[1] as f64 * scalar) as u8,
+        (color[2] as f64 * scalar) as u8,
+    ]
+}
+
 #[derive(Debug, Clone)]
 pub struct Viewport {
     pub position: Pos3,
@@ -104,16 +112,17 @@ impl Canvas {
 #[derive(Debug, Clone)]
 pub struct Scene {
     pub spheres: Vec<Sphere>,
+    pub lights: Vec<Light>,
     pub bg_color: [u8; 3],
 }
 
 impl Scene {
-    pub fn trace_ray(&self, ray_origin: Pos3, d: Vec3, t_min: f64, t_max: f64) -> [u8; 3] {
+    pub fn trace_ray(&self, origin: Pos3, d: Vec3, t_min: f64, t_max: f64) -> [u8; 3] {
         let mut closest = f64::MAX;
         let mut closest_sphere: Option<&Sphere> = None;
 
         for sphere in self.spheres.iter() {
-            let (t1, t2) = self.find_intersections(ray_origin, d, sphere);
+            let (t1, t2) = self.find_intersections(origin, d, sphere);
 
             if (t_min..t_max).contains(&t1) && t1 < closest {
                 closest = t1;
@@ -127,7 +136,12 @@ impl Scene {
 
         match closest_sphere {
             None => self.bg_color,
-            Some(sph) => sph.color,
+            Some(sph) => {
+                let p = origin + closest * d;
+                let n = p.difference(sph.center).to_normalized();
+
+                scale_color(sph.color, self.compute_lighting(p, n, -d, sph.surface))
+            }
         }
     }
 
@@ -148,6 +162,45 @@ impl Scene {
 
         (t1, t2)
     }
+
+    pub fn compute_lighting(&self, point: Pos3, normal: Vec3, v: Vec3, specular: Surface) -> f64 {
+        let mut i = 0.0;
+
+        for light in self.lights.iter() {
+            match light {
+                Light::Ambient(val) => i += val,
+                Light::Point(val, pos) => {
+                    let l = pos.difference(point);
+                    let nl = normal * l;
+                    if nl.is_sign_positive() {
+                        i += val * nl / (normal.magnitude() * l.magnitude());
+                    }
+                    if let Surface::Shiny(s) = specular {
+                        let r = normal * 2.0 * (nl) - l;
+                        let rv = r * v;
+                        if rv.is_sign_positive() {
+                            i += val * (rv / (r.magnitude() * v.magnitude())).powf(s);
+                        }
+                    }
+                }
+                Light::Directional(val, dir) => {
+                    let nl = normal * *dir;
+                    if nl.is_sign_positive() {
+                        i += val * nl / (normal.magnitude() * dir.magnitude());
+                    }
+                    if let Surface::Shiny(s) = specular {
+                        let r = normal * 2.0 * (nl) - *dir;
+                        let rv = r * v;
+                        if rv.is_sign_positive() {
+                            i += val * (rv / (r.magnitude() * v.magnitude())).powf(s);
+                        }
+                    }
+                }
+            }
+        }
+
+        i
+    }
 }
 
 #[derive(Debug, Clone)]
@@ -155,14 +208,29 @@ pub struct Sphere {
     pub center: Pos3,
     pub radius: f64,
     pub color: [u8; 3],
+    pub surface: Surface,
 }
 
 impl Sphere {
-    pub fn new(center: Pos3, radius: f64, color: [u8; 3]) -> Self {
+    pub fn new(center: Pos3, radius: f64, color: [u8; 3], surface: Surface) -> Self {
         Self {
             center,
             radius,
             color,
+            surface,
         }
     }
+}
+
+#[derive(Debug, Clone)]
+pub enum Light {
+    Ambient(f64),
+    Point(f64, Pos3),
+    Directional(f64, Vec3),
+}
+
+#[derive(Debug, Clone, PartialEq, Copy)]
+pub enum Surface {
+    Matte,
+    Shiny(f64),
 }
