@@ -34,6 +34,11 @@ impl Vec3 {
             z: (self.x * rhs.y) - (self.y * rhs.x),
         }
     }
+
+    /// reflects self via a given Normal vector
+    pub fn reflect(&self, normal: Vec3) -> Vec3 {
+        2.0 * normal * (normal * *self ) - *self
+    }
 }
 
 impl From<Pos3> for Vec3 {

@@ -1,5 +1,6 @@
 pub mod primitives {
     pub mod algebra_impl;
+    pub mod color;
     pub mod pos;
     pub mod vector;
 }
@@ -10,13 +11,7 @@ pub use primitives::{
 
 use image::Rgb;
 
-pub fn scale_color(color: [u8; 3], scalar: f64) -> [u8; 3] {
-    [
-        (color[0] as f64 * scalar) as u8,
-        (color[1] as f64 * scalar) as u8,
-        (color[2] as f64 * scalar) as u8,
-    ]
-}
+use crate::primitives::color::Color;
 
 #[derive(Debug, Clone)]
 pub struct Viewport {
@@ -117,7 +112,46 @@ pub struct Scene {
 }
 
 impl Scene {
-    pub fn trace_ray(&self, origin: Pos3, d: Vec3, t_min: f64, t_max: f64) -> [u8; 3] {
+    pub fn trace_ray(
+        &self,
+        origin: Pos3,
+        d: Vec3,
+        t_min: f64,
+        t_max: f64,
+        depth: usize,
+    ) -> [u8; 3] {
+        let (closest, closest_sphere) = self.get_closest_intersection(origin, d, t_min, t_max);
+
+        match closest_sphere {
+            None => self.bg_color,
+            Some(sph) => {
+                let p = origin + closest * d;
+                let n = p.difference(sph.center).to_normalized();
+
+                let local_color: Color =
+                    Color(sph.color) * self.compute_lighting(p, n, -d, sph.surface);
+                let reflect = sph.reflective;
+
+                if depth == 0 || reflect == 0.0 {
+                    return local_color.into();
+                }
+                let recurse_ray = -d.reflect(n);
+                let reflect_color: Color = self
+                    .trace_ray(p, recurse_ray, 0.001, t_max, depth - 1)
+                    .into();
+
+                ((local_color * (1.0 - reflect)) + (reflect_color * reflect)).into()
+            }
+        }
+    }
+
+    pub fn get_closest_intersection(
+        &self,
+        origin: Pos3,
+        d: Vec3,
+        t_min: f64,
+        t_max: f64,
+    ) -> (f64, Option<&Sphere>) {
         let mut closest = f64::MAX;
         let mut closest_sphere: Option<&Sphere> = None;
 
@@ -134,15 +168,7 @@ impl Scene {
             }
         }
 
-        match closest_sphere {
-            None => self.bg_color,
-            Some(sph) => {
-                let p = origin + closest * d;
-                let n = p.difference(sph.center).to_normalized();
-
-                scale_color(sph.color, self.compute_lighting(p, n, -d, sph.surface))
-            }
-        }
+        (closest, closest_sphere)
     }
 
     pub fn find_intersections(&self, origin: Pos3, d: Vec3, sphere: &Sphere) -> (f64, f64) {
@@ -172,11 +198,21 @@ impl Scene {
                 Light::Point(val, pos) => {
                     let l = pos.difference(point);
                     let nl = normal * l;
+
+                    let (_, shadow_sphere) =
+                        self.get_closest_intersection(point, l, 0.0001, f64::MAX);
+                    if shadow_sphere.is_some() {
+                        continue;
+                    }
+
+                    // diffuse
                     if nl.is_sign_positive() {
                         i += val * nl / (normal.magnitude() * l.magnitude());
                     }
+
+                    // specular
                     if let Surface::Shiny(s) = specular {
-                        let r = normal * 2.0 * (nl) - l;
+                        let r = l.reflect(normal);
                         let rv = r * v;
                         if rv.is_sign_positive() {
                             i += val * (rv / (r.magnitude() * v.magnitude())).powf(s);
@@ -185,11 +221,21 @@ impl Scene {
                 }
                 Light::Directional(val, dir) => {
                     let nl = normal * *dir;
+
+                    let (_, shadow_sphere) =
+                        self.get_closest_intersection(point, *dir, 0.001, f64::MAX);
+                    if shadow_sphere.is_some() {
+                        continue;
+                    }
+
+                    // diffuse
                     if nl.is_sign_positive() {
                         i += val * nl / (normal.magnitude() * dir.magnitude());
                     }
+
+                    // specular
                     if let Surface::Shiny(s) = specular {
-                        let r = normal * 2.0 * (nl) - *dir;
+                        let r = dir.reflect(normal);
                         let rv = r * v;
                         if rv.is_sign_positive() {
                             i += val * (rv / (r.magnitude() * v.magnitude())).powf(s);
@@ -209,15 +255,24 @@ pub struct Sphere {
     pub radius: f64,
     pub color: [u8; 3],
     pub surface: Surface,
+    pub reflective: f64,
 }
 
 impl Sphere {
-    pub fn new(center: Pos3, radius: f64, color: [u8; 3], surface: Surface) -> Self {
+    pub fn new(
+        center: Pos3,
+        radius: f64,
+        color: [u8; 3],
+        surface: Surface,
+        reflective: f64,
+    ) -> Self {
+        assert!(reflective >= 0.0 && reflective <= 1.0);
         Self {
             center,
             radius,
             color,
             surface,
+            reflective,
         }
     }
 }
