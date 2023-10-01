@@ -3,14 +3,14 @@ use std::ops;
 #[derive(Debug, Clone, Copy)]
 pub struct Color(pub [u8; 3]);
 
-impl ops::Mul<f64> for Color {
+impl ops::Mul<f32> for Color {
     type Output = Self;
 
-    fn mul(self, rhs: f64) -> Self::Output {
+    fn mul(self, rhs: f32) -> Self::Output {
         Color([
-            (self.0[0] as f64 * rhs) as u8,
-            (self.0[1] as f64 * rhs) as u8,
-            (self.0[2] as f64 * rhs) as u8,
+            (self.0[0] as f32 * rhs) as u8,
+            (self.0[1] as f32 * rhs) as u8,
+            (self.0[2] as f32 * rhs) as u8,
         ])
     }
 }
