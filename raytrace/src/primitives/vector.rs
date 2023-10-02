@@ -37,7 +37,7 @@ impl Vec3 {
 
     /// reflects self via a given Normal vector
     pub fn reflect(&self, normal: Vec3) -> Vec3 {
-        2.0 * normal * (normal * *self) - *self
+        *self - (2.0 * normal * (normal * *self))
     }
 }
 

@@ -1,26 +1,30 @@
-use crate::{Pos3, Surface, Matrix};
+#![allow(clippy::approx_constant)]
+
+use crate::{Pos3, Surface, Matrix, Vec3, objects::material::Material};
 
 #[derive(Debug, Clone)]
 pub struct Sphere {
     pub transform: Matrix,
-    pub color: [u8; 3],
-    pub surface: Surface,
-    pub reflective: f32,
+    pub t_inverted: Matrix,
+    pub t_transposed: Matrix,
+    pub t_invert_transp: Matrix,
+    pub material: Material,
 }
 
 impl Sphere {
     pub fn new(
         transform: Matrix,
-        color: [u8; 3],
-        surface: Surface,
-        reflective: f32,
+        material: Material
     ) -> Self {
-        assert!((0.0..=1.0).contains(&reflective));
+        let t_inverted = transform.inverted().unwrap();
+        let t_transposed = transform.transposed();
+        let t_invert_transp = t_inverted.transposed();
         Self {
             transform,
-            color,
-            surface,
-            reflective,
+            t_inverted,
+            t_transposed,
+            t_invert_transp,
+            material,
         }
     }
 
@@ -28,4 +32,19 @@ impl Sphere {
         self.transform = transform;
         self
     }
+
+    pub fn normal_at(&self, point: Pos3) -> Vec3 {
+        let object_point = &self.t_inverted * point;
+        let dist = object_point - Pos3::new(0.0, 0.0, 0.0);
+
+        (&self.t_invert_transp * dist).to_normalized()
+    }
+}
+
+#[test]
+pub fn test_normal() {
+    let sphere = Sphere::new(Matrix::translation(0.0, 1.0, 0.0), Material::default());
+    let normal = sphere.normal_at(Pos3::new(0.0, 1.70711, -0.70711));
+
+    assert_eq!(normal, Vec3::new(0.0, 0.70711, -0.70711));
 }

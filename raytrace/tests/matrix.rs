@@ -161,7 +161,7 @@ pub fn test_matrix_invert() {
         vec![-0.52256, -0.81391, -0.30075, 0.30639],
     ]);
 
-    assert!(matrix.invert().unwrap() == test);
+    assert!(matrix.inverted().unwrap() == test);
 
     let matrix_2 = Matrix::from_vec(vec![
         vec![8.0, -5.0, 9.0, 2.0],
@@ -177,7 +177,7 @@ pub fn test_matrix_invert() {
         vec![-0.69231, -0.69231, -0.76923, -1.92308],
     ]);
 
-        assert!(matrix_2.invert().unwrap() == test_2);
+        assert!(matrix_2.inverted().unwrap() == test_2);
 
 }
 
@@ -188,7 +188,7 @@ pub fn test_matrix_translation() {
     let transform: Matrix = Matrix::translation(5.0, -3.0, 2.0);
 
     assert_eq!(transform.clone() * point, Pos3::new(2.0, 1.0, 7.0));
-    assert_eq!(transform.invert().unwrap() * point, Pos3::new(-8.0, 7.0, 3.0))
+    assert_eq!(transform.inverted().unwrap() * point, Pos3::new(-8.0, 7.0, 3.0))
 }
 
 #[test]
@@ -201,7 +201,7 @@ pub fn test_matrix_scaling() {
 
     let vec = Vec3::new(-4.0, 6.0, 8.0);
     assert_eq!(scale.clone() * vec, Vec3::new(-8.0, 18.0, 32.0));
-    assert_eq!(scale.invert().unwrap() * vec, Vec3::new(-2.0, 2.0, 2.0));
+    assert_eq!(scale.inverted().unwrap() * vec, Vec3::new(-2.0, 2.0, 2.0));
 }
 
 #[test]

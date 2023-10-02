@@ -1,9 +1,13 @@
-use std::{sync::Mutex, time::Instant, sync::Arc};
+use std::{sync::Arc, sync::Mutex, time::Instant};
 
-use rt::{ Light, Pos3, Matrix, Scene, objects::Sphere, Surface, Vec3, Viewport, identity_matrix, topleft_rel};
-use raytrace as rt;
 use image::{Rgb, RgbImage};
 use rayon::prelude::{IntoParallelIterator, ParallelIterator};
+use raytrace as rt;
+use rt::{
+    identity_matrix,
+    objects::{material::Material, Sphere},
+    topleft_rel, Color, Matrix, PointLight, Pos3, Scene, Surface, Vec3, Viewport,
+};
 
 const WIDTH: usize = 1000;
 const HEIGHT: usize = 1000;
@@ -13,36 +17,26 @@ const HIGH_WIDTH: isize = WIDTH as isize / 2;
 const LOW_HEIGHT: isize = -(HEIGHT as isize / 2);
 const HIGH_HEIGHT: isize = HEIGHT as isize / 2;
 
-const BACKGROUND_COLOR: [u8; 3] = BLACK;
-
-const WHITE: [u8; 3] = [255, 255, 255];
-const BLACK: [u8; 3] = [0, 0, 0];
-const RED: [u8; 3] = [255, 0, 0];
-const GREEN: [u8; 3] = [0, 255, 0];
-const BLUE: [u8; 3] = [0, 0, 255];
-const YELLOW: [u8; 3] = [255, 255, 0];
-const CYAN: [u8; 3] = [0, 255, 255];
-const SKY_BLUE: [u8;3] = [135, 206, 255];
+const BACKGROUND_COLOR: [u8; 3] = [0, 0, 0];
 
 fn main() {
-//     let canvas = Canvas::new(WIDTH, HEIGHT);
+    //     let canvas = Canvas::new(WIDTH, HEIGHT);
 
     let identity = identity_matrix!();
 
-    let spheres = vec![
-        Arc::new(Sphere::new(
-            Matrix::skew(1.0, 0.0, 0.0, 0.0, 0.0, 0.0),
-            RED,
-            Surface::Shiny(500.0),
-            0.2,
-        )),];
+    let spheres = vec![Arc::new(Sphere::new(
+        identity,
+        Material::new(Color(1.0, 0.2, 1.0), 0.1, 0.9, 0.9, 200.0),
+    ))];
 
     let scene = Scene {
         spheres,
-        lights: Vec::new(),
+        lights: vec![PointLight::new(
+            Pos3::new(-10.0, 10.0, -10.0),
+            Color(1.0, 1.0, 1.0),
+        )],
         bg_color: BACKGROUND_COLOR,
     };
-
 
     let image = Mutex::new(RgbImage::new(WIDTH as u32, HEIGHT as u32));
 
@@ -65,7 +59,7 @@ fn main() {
 
     let dur = now.elapsed();
 
-    println!("Time to trace rays: {:?}", dur);
+    println!("Time to trace rays: {dur:?}");
 
     image.lock().unwrap().save("./test.png").unwrap();
 }

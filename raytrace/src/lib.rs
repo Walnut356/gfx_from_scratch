@@ -1,23 +1,29 @@
 pub mod scene;
 pub mod viewport;
-pub use scene::Scene;
 
 pub mod primitives {
     pub mod color;
     pub mod matrix;
     pub mod pos;
     pub mod vector;
+    pub mod ray;
+
+
+
 }
 
 pub mod objects {
     pub mod sphere;
+    pub mod material;
+
     pub use sphere::Sphere;
 }
 
 use std::sync::Arc;
 
-pub use primitives::{color::Color, matrix::Matrix, pos::Pos3, vector::Vec3};
-pub use viewport::{Ray, Viewport};
+pub use primitives::{color::Color, matrix::Matrix, pos::Pos3, vector::Vec3, ray::Ray};
+pub use viewport:: Viewport;
+pub use scene::Scene;
 
 use image::Rgb;
 
@@ -48,10 +54,18 @@ pub fn float_eq(a: f32, b: f32) -> bool {
 }
 
 #[derive(Debug, Clone)]
-pub enum Light {
-    Ambient(f32),
-    Point(f32, Pos3),
-    Directional(f32, Vec3),
+pub struct PointLight {
+    position: Pos3,
+    intensity: Color
+}
+
+impl PointLight {
+    pub fn new(position: Pos3, intensity: Color) -> Self {
+        Self {
+            position,
+            intensity,
+        }
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Copy)]

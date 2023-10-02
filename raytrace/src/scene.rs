@@ -1,12 +1,27 @@
 use std::sync::Arc;
 
-use crate::{objects::Sphere, Color, Light, Object, Pos3, Ray, Surface, Vec3};
+use crate::{
+    identity_matrix,
+    objects::{material::Material, Sphere},
+    primitives::color,
+    Color, Matrix, Object, PointLight, Pos3, Ray, Surface, Vec3,
+};
 
-#[derive(Debug, Clone)]
+#[derive(Debug)]
 pub struct Scene {
     pub spheres: Vec<Arc<Sphere>>,
-    pub lights: Vec<Light>,
+    pub lights: Vec<PointLight>,
     pub bg_color: [u8; 3],
+}
+
+impl Clone for Scene {
+    fn clone(&self) -> Self {
+        Self {
+            spheres: self.spheres.clone(),
+            lights: self.lights.clone(),
+            bg_color: self.bg_color.clone(),
+        }
+    }
 }
 
 impl Scene {
@@ -18,7 +33,9 @@ impl Scene {
             None => self.bg_color,
             Some(hit) => {
                 if let Object::Sphere(obj) = hit.obj {
-                    obj.color
+                    let point = ray.position(hit.t);
+                    self.compute_lighting(point, obj.normal_at(point), ray.dir, &obj.material)
+                        .into()
                 } else {
                     todo!()
                 }
@@ -59,64 +76,44 @@ impl Scene {
             .min()
     }
 
-    // pub fn compute_lighting(&self, point: Pos3, normal: Vec3, v: Vec3, specular: Surface) -> f32 {
-    //     let mut i = 0.0;
+    pub fn compute_lighting(
+        &self,
+        point: Pos3,
+        normal_vec: Vec3,
+        cam_vec: Vec3,
+        material: &Material,
+    ) -> Color {
+        let mut result = Color::BLACK;
 
-    //     for light in self.lights.iter() {
-    //         match light {
-    //             Light::Ambient(val) => i += val,
-    //             Light::Point(val, pos) => {
-    //                 let l = *pos - point;
-    //                 let nl = normal * l;
+        for light in &self.lights {
+            let effective_color = material.color * light.intensity;
+            let light_vec = (light.position - point).to_normalized();
 
-    //                 let (_, shadow_sphere) =
-    //                     self.get_intersections(&Ray::new(point, l), 0.0001, f32::MAX);
-    //                 if shadow_sphere.is_some() {
-    //                     continue;
-    //                 }
+            let ambient = effective_color * material.ambient;
 
-    //                 // diffuse
-    //                 if nl.is_sign_positive() {
-    //                     i += val * nl / (normal.magnitude() * l.magnitude());
-    //                 }
+            let l_dot_n = light_vec * normal_vec;
 
-    //                 // specular
-    //                 if let Surface::Shiny(s) = specular {
-    //                     let r = l.reflect(normal);
-    //                     let rv = r * v;
-    //                     if rv.is_sign_positive() {
-    //                         i += val * (rv / (r.magnitude() * v.magnitude())).powf(s);
-    //                     }
-    //                 }
-    //             }
-    //             Light::Directional(val, dir) => {
-    //                 let nl = normal * *dir;
+            let (diffuse, specular): (Color, Color) = if l_dot_n < 0.0 {
+                (Color::BLACK, Color::BLACK)
+            } else {
+                let reflect_vec = -light_vec.reflect(normal_vec);
+                let r_dot_c = reflect_vec * cam_vec;
 
-    //                 let (_, shadow_sphere) =
-    //                     self.get_intersections(&Ray::new(point, *dir), 0.001, f32::MAX);
-    //                 if shadow_sphere.is_some() {
-    //                     continue;
-    //                 }
+                let specular = if r_dot_c <= 0.0 {
+                    Color::BLACK
+                } else {
+                    let factor = r_dot_c.powf(material.shine);
+                    light.intensity * material.specular * factor
+                };
 
-    //                 // diffuse
-    //                 if nl.is_sign_positive() {
-    //                     i += val * nl / (normal.magnitude() * dir.magnitude());
-    //                 }
+                (effective_color * material.diffuse * l_dot_n, specular)
+            };
 
-    //                 // specular
-    //                 if let Surface::Shiny(s) = specular {
-    //                     let r = dir.reflect(normal);
-    //                     let rv = r * v;
-    //                     if rv.is_sign_positive() {
-    //                         i += val * (rv / (r.magnitude() * v.magnitude())).powf(s);
-    //                     }
-    //                 }
-    //             }
-    //         }
-    //     }
+            result = result + ambient + diffuse + specular;
+        }
 
-    //     i
-    // }
+        result
+    }
 }
 
 /// Used to track rays intersecting with objects. **All comparison operations are done on the
@@ -151,4 +148,134 @@ impl Ord for Intersection {
     fn cmp(&self, other: &Self) -> std::cmp::Ordering {
         self.t.total_cmp(&other.t)
     }
+}
+
+#[test]
+pub fn test_lighting_behindcam() {
+    let spheres = vec![Arc::new(Sphere::new(
+        identity_matrix!(),
+        Material::new(Color(1.0, 1.0, 1.0), 0.1, 0.9, 0.9, 200.0),
+    ))];
+
+    let scene = Scene {
+        spheres,
+        lights: vec![PointLight::new(
+            Pos3::new(0.0, 0.0, -10.0),
+            Color(1.0, 1.0, 1.0),
+        )],
+        bg_color: [0, 0, 0],
+    };
+
+    let result = scene.compute_lighting(
+        Pos3::new(0.0, 0.0, 0.0),
+        Vec3::new(0.0, 0.0, -1.0),
+        Vec3::new(0.0, 0.0, -1.0),
+        &scene.spheres[0].material,
+    );
+
+    assert_eq!(result, Color(1.9, 1.9, 1.9));
+}
+
+#[test]
+pub fn test_lighting_eyeoffset() {
+    let spheres = vec![Arc::new(Sphere::new(
+        identity_matrix!(),
+        Material::new(Color(1.0, 1.0, 1.0), 0.1, 0.9, 0.9, 200.0),
+    ))];
+
+    let scene = Scene {
+        spheres,
+        lights: vec![PointLight::new(
+            Pos3::new(0.0, 0.0, -10.0),
+            Color(1.0, 1.0, 1.0),
+        )],
+        bg_color: [0, 0, 0],
+    };
+
+    let result = scene.compute_lighting(
+        Pos3::new(0.0, 0.0, 0.0),
+        Vec3::new(0.0, 0.0, -1.0),
+        Vec3::new(0.0, 2.0_f32.sqrt() / 2.0, -(2.0_f32.sqrt() / 2.0)),
+        &scene.spheres[0].material,
+    );
+
+    assert_eq!(result, Color(1.0, 1.0, 1.0));
+}
+
+#[test]
+pub fn test_lighting_lightoffset() {
+    let spheres = vec![Arc::new(Sphere::new(
+        identity_matrix!(),
+        Material::new(Color(1.0, 1.0, 1.0), 0.1, 0.9, 0.9, 200.0),
+    ))];
+
+    let scene = Scene {
+        spheres,
+        lights: vec![PointLight::new(
+            Pos3::new(0.0, 10.0, -10.0),
+            Color(1.0, 1.0, 1.0),
+        )],
+        bg_color: [0, 0, 0],
+    };
+
+    let result = scene.compute_lighting(
+        Pos3::new(0.0, 0.0, 0.0),
+        Vec3::new(0.0, 0.0, -1.0),
+        Vec3::new(0.0, 0.0, -1.0),
+        &scene.spheres[0].material,
+    );
+
+    assert_eq!(result, Color(0.7364, 0.7364, 0.7364));
+}
+
+#[test]
+pub fn test_lighting_bothoffset() {
+    let spheres = vec![Arc::new(Sphere::new(
+        identity_matrix!(),
+        Material::new(Color(1.0, 1.0, 1.0), 0.1, 0.9, 0.9, 200.0),
+    ))];
+
+    let scene = Scene {
+        spheres,
+        lights: vec![PointLight::new(
+            Pos3::new(0.0, 10.0, -10.0),
+            Color(1.0, 1.0, 1.0),
+        )],
+        bg_color: [0, 0, 0],
+    };
+
+    let result = scene.compute_lighting(
+        Pos3::new(0.0, 0.0, 0.0),
+        Vec3::new(0.0, 0.0, -1.0),
+        Vec3::new(0.0, -(2.0_f32.sqrt() / 2.0), -(2.0_f32.sqrt() / 2.0)),
+        &scene.spheres[0].material,
+    );
+
+    assert_eq!(result, Color(1.6364, 1.6364, 1.6364));
+}
+
+#[test]
+pub fn test_lighting_behindobj() {
+    let spheres = vec![Arc::new(Sphere::new(
+        identity_matrix!(),
+        Material::new(Color(1.0, 1.0, 1.0), 0.1, 0.9, 0.9, 200.0),
+    ))];
+
+    let scene = Scene {
+        spheres,
+        lights: vec![PointLight::new(
+            Pos3::new(0.0, 0.0, 10.0),
+            Color(1.0, 1.0, 1.0),
+        )],
+        bg_color: [0, 0, 0],
+    };
+
+    let result = scene.compute_lighting(
+        Pos3::new(0.0, 0.0, 0.0),
+        Vec3::new(0.0, 0.0, -1.0),
+        Vec3::new(0.0, 0.0, -1.0),
+        &scene.spheres[0].material,
+    );
+
+    assert_eq!(result, Color(0.1, 0.1, 0.1));
 }

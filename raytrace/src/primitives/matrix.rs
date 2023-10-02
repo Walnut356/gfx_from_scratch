@@ -1,4 +1,4 @@
-use std::{iter::zip, slice::ChunksExact, cell::OnceCell};
+use std::iter::zip;
 
 use crate::{float_eq, Pos3, Vec3};
 
@@ -177,7 +177,7 @@ impl Matrix {
     }
 
     /// Returns an inverted matrix if an inversion is possible, otherwise returns None
-    pub fn invert(&self) -> Option<Matrix> {
+    pub fn inverted(&self) -> Option<Matrix> {
         let det = self.get_determinant();
         if det == 0.0 {
             return None;
@@ -240,17 +240,11 @@ impl std::ops::Mul for Matrix {
         let mut result = Matrix::new(rhs.width, self.height);
 
         for i in 0..self.height {
-            for j in 0..rhs.width {
-                let mut val = 0.0;
-                for k in 0..self.width {
-                    let temp1 = &self[i];
-                    let a = temp1[k];
-                    let temp2 = &rhs[k];
-                    let b = temp2[j];
-                    val += a * b;
+            for k in 0..self.width {
+                let r = self[i][k];
+                for j in 0..rhs.width {
+                    result[i][j] += r * rhs[k][j]
                 }
-
-                result[i][j] = val;
             }
         }
 
@@ -268,20 +262,13 @@ impl std::ops::Mul<Matrix> for &Matrix {
         let mut result = Matrix::new(rhs.width, self.height);
 
         for i in 0..self.height {
-            for j in 0..rhs.width {
-                let mut val = 0.0;
-                for k in 0..self.width {
-                    let temp1 = &self[i];
-                    let a = temp1[k];
-                    let temp2 = &rhs[k];
-                    let b = temp2[j];
-                    val += a * b;
+            for k in 0..self.width {
+                let r = self[i][k];
+                for j in 0..rhs.width {
+                    result[i][j] += r * rhs[k][j]
                 }
-
-                result[i][j] = val;
             }
         }
-
         result
     }
 }
