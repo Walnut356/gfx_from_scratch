@@ -20,9 +20,9 @@ impl ops::Mul<f32> for Color {
 
     fn mul(self, rhs: f32) -> Self::Output {
         Color(
-            self.0 as f32 * rhs,
-            self.1 as f32 * rhs,
-            self.2 as f32 * rhs,
+            self.0 * rhs,
+            self.1 * rhs,
+            self.2 * rhs,
         )
     }
 }
@@ -32,9 +32,9 @@ impl ops::Mul for Color {
 
     fn mul(self, rhs: Self) -> Self::Output {
         Color(
-            self.0 as f32 * rhs.0,
-            self.1 as f32 * rhs.1,
-            self.2 as f32 * rhs.2,
+            self.0 * rhs.0,
+            self.1 * rhs.1,
+            self.2 * rhs.2,
         )
     }
 }

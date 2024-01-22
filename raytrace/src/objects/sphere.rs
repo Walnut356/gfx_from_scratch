@@ -1,6 +1,6 @@
 #![allow(clippy::approx_constant)]
 
-use crate::{Pos3, Surface, Matrix, Vec3, objects::material::Material};
+use crate::{Pos3, Matrix, Vec3, objects::material::Material};
 
 #[derive(Debug, Clone)]
 pub struct Sphere {

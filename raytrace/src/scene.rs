@@ -19,11 +19,37 @@ impl Clone for Scene {
         Self {
             spheres: self.spheres.clone(),
             lights: self.lights.clone(),
-            bg_color: self.bg_color.clone(),
+            bg_color: self.bg_color,
         }
     }
 }
 
+impl Default for Scene {
+    fn default() -> Self {
+        Self {
+            spheres: vec![Sphere::new(
+                identity_matrix!(),
+                Material {
+                    color: Color(0.8, 1.0, 0.6),
+                    ambient: 0.0,
+                    diffuse: 0.7,
+                    specular: 0.2,
+                    shine: 0.0,
+                },
+            )
+            .into(),
+            Sphere::new(
+                Matrix::scaling(0.5, 0.5, 0.5),
+                Material::default(),
+            ).into()],
+            lights: vec![PointLight::new(
+                Pos3::new(-10.0, 10.0, -10.0),
+                Color(1.0, 1.0, 1.0),
+            )],
+            bg_color: Default::default(),
+        }
+    }
+}
 impl Scene {
     pub fn trace_ray(&self, ray: Ray, t_min: f32, t_max: f32, depth: usize) -> [u8; 3] {
         let intersects = self.get_intersections(&ray, t_min, t_max);
@@ -140,7 +166,7 @@ impl Eq for Intersection {}
 
 impl PartialOrd for Intersection {
     fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
-        self.t.partial_cmp(&other.t)
+        Some(self.cmp(other))
     }
 }
 
